@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: purdue_maize_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: maize
+      POSTGRES_PASSWORD: maize_secret
+      POSTGRES_DB: maize_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maize -d maize_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: ./purdue_maize_api
+    container_name: purdue_maize_api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://maize:maize_secret@db:5432/maize_db
+      SECRET_KEY: change-me-in-production
+      MEDIA_DIR: /app/media
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./purdue_maize_api:/app
+      - media_files:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  adminer:
+    image: adminer
+    container_name: purdue_maize_adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+
+volumes:
+  pgdata:
+  media_files:
